@@ -10,9 +10,22 @@
 		46219D192D7099B200F24930 /* AR-StreamingScreen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AR-StreamingScreen.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		46219D4C2D70B93300F24930 /* Exceptions for "AR-StreamingScreen" folder in "AR-StreamingScreen" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 46219D182D7099B200F24930 /* AR-StreamingScreen */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		46219D1B2D7099B200F24930 /* AR-StreamingScreen */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				46219D4C2D70B93300F24930 /* Exceptions for "AR-StreamingScreen" folder in "AR-StreamingScreen" target */,
+			);
 			path = "AR-StreamingScreen";
 			sourceTree = "<group>";
 		};
@@ -255,6 +268,9 @@
 				DEVELOPMENT_TEAM = 8SBSSA37JJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "AR-StreamingScreen/Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app requires camera access to display AR content.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "This app requires local network access to receive screen streaming from macOS.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -284,6 +300,9 @@
 				DEVELOPMENT_TEAM = 8SBSSA37JJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "AR-StreamingScreen/Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app requires camera access to display AR content.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "This app requires local network access to receive screen streaming from macOS.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
