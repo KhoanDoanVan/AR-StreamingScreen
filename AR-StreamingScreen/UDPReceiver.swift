@@ -6,64 +6,167 @@
 //
 
 import Foundation
+import SwiftUI
 import Network
-import UIKit
+import CoreVideo
 
 class UDPReceiver: ObservableObject {
     
-    @Published var receivedImage: UIImage? = nil
     private var listener: NWListener?
-
+    private let port: NWEndpoint.Port = 5120
+    
+    /// Image data JPEG
+    @Published var receivedImage: UIImage? = nil
+    private var imageDataBuffer = Data()
+    
+    /// CVPixelBuffer
+    @Published var receivedPixelBuffer: CVPixelBuffer?
+    private var pixelBufferDataBuffer = Data()
+    
     func startListening() {
         let params = NWParameters.udp
         do {
-            listener = try NWListener(using: params, on: 5120) /// Same port as macOS app
+            listener = try NWListener(using: params, on: port)
             listener?.newConnectionHandler = { [weak self] connection in
-                self?.receiveData(from: connection)
+                
+                self?.receiveDataJPEG(from: connection)
+                
+//                self?.receiveDataPixelBuffer(from: connection)
+                
                 connection.start(queue: .global(qos: .background))
             }
             listener?.start(queue: .global(qos: .background))
-            print("🟢 Listening for screen stream...")
+            print("🟢 Listening for screen stream on port \(port)")
         } catch {
             print("❌ Failed to start UDP listener: \(error)")
         }
     }
-
-    private func receiveData(from connection: NWConnection) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, _, error in
-            if let data = data {
-                print("🟡 Received \(data.count) bytes")
-                
-                if data.count > 4 {
-                    let sizeData = data.prefix(4)
-                    let expectedSize = Int(UInt32(bigEndian: sizeData.withUnsafeBytes { $0.load(as: UInt32.self) }))
-                    let imageData = data.dropFirst(4)
-                    
-                    print("📏 Expected Image Size: \(expectedSize) bytes")
-                    print("📥 Received Image Size: \(imageData.count) bytes")
-
-                    if imageData.count == expectedSize {
-                        if let image = UIImage(data: imageData) {
-                            DispatchQueue.main.async {
-                                self?.receivedImage = image
-                            }
-                        } else {
-                            print("🔴 Failed to convert data to UIImage")
-                        }
-                    } else {
-                        print("⚠️ Incomplete image data")
-                    }
-                } else {
-                    print("🔴 Not enough data to determine image size")
-                }
-            } else {
+    
+    /// CVPixelBuffer
+    private func receiveDataPixelBuffer(from connection: NWConnection) {
+        
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65535) {
+            [weak self] data, _, _, error in
+            
+            guard let self = self,
+                  let data = data else {
                 print("🔴 No data received")
+                return
+            }
+            
+            pixelBufferDataBuffer.append(data)
+            
+            if pixelBufferDataBuffer.count < 4 {
+                
+                let sizeData = pixelBufferDataBuffer.prefix(4)
+                let expectedSize = Int(
+                    UInt32(
+                        bigEndian: sizeData.withUnsafeBytes{
+                            $0.load(
+                                as: UInt32.self
+                            )
+                        })
+                )
+                
+                if pixelBufferDataBuffer.count - 4 >= expectedSize {
+                    
+                    let pixelBufferRawData = pixelBufferDataBuffer.dropFirst(4).prefix(expectedSize)
+                    
+                    if let pixelBuffer = self.createPixelBuffer(from: pixelBufferRawData) {
+                        
+                        DispatchQueue.main.async { [weak self] in
+                            self?.receivedPixelBuffer = pixelBuffer
+                        }
+                        
+                    } else {
+                        print("🔴 Failed to convert to CVPixelBuffer")
+                    }
+                    
+                    pixelBufferDataBuffer.removeFirst(4 + expectedSize)
+                }
+                
             }
             
             if error == nil {
-                self?.receiveData(from: connection) // Continue receiving
+                self.receiveDataPixelBuffer(from: connection)
             } else {
-                print("❌ Receive error: \(String(describing: error))")
+                print("❌ Receive error: \(error!)")
+            }
+        }
+        
+    }
+    
+    /// Create Pixel Buffer
+    private func createPixelBuffer(from data: Data) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        
+        let width = 640
+        let height = 360
+        let pixelFormat = kCVPixelFormatType_32BGRA
+        
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferWidthKey: width,
+            kCVPixelBufferHeightKey: height,
+            kCVPixelBufferPixelFormatTypeKey: pixelFormat,
+            kCVPixelBufferBytesPerRowAlignmentKey: width * 4,
+            kCVPixelBufferIOSurfacePropertiesKey: [:]
+        ]
+        
+        let status = CVPixelBufferCreate(kCFAllocatorDefault, width, height, pixelFormat, attrs as CFDictionary, &pixelBuffer)
+        
+        guard status == kCVReturnSuccess,
+              let buffer = pixelBuffer
+        else {
+            print("🔴 Failed to create CVPixelBuffer")
+            return nil
+        }
+        
+        /// Lock
+        CVPixelBufferLockBaseAddress(buffer, .init(rawValue: 0))
+        
+        if let pixelData = CVPixelBufferGetBaseAddress(buffer) {
+            data.copyBytes(to: pixelData.assumingMemoryBound(to: UInt8.self), count: data.count)
+        }
+        
+        /// Unlock
+        CVPixelBufferUnlockBaseAddress(buffer, .init(rawValue: 0))
+        
+        return buffer
+    }
+    
+    /// JPEG
+    private func receiveDataJPEG(from connection: NWConnection) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, _, error in
+            guard let self = self, let data = data else {
+                print("🔴 No data received")
+                return
+            }
+            
+            imageDataBuffer.append(data)
+            
+            if imageDataBuffer.count > 4 {
+                let sizeData = imageDataBuffer.prefix(4)
+                let expectedSize = Int(UInt32(bigEndian: sizeData.withUnsafeBytes { $0.load(as: UInt32.self) }))
+                
+                if imageDataBuffer.count - 4 >= expectedSize {
+                    let imageData = imageDataBuffer.dropFirst(4).prefix(expectedSize)
+                    
+                    if let image = UIImage(data: imageData) {
+                        DispatchQueue.main.async {
+                            self.receivedImage = image
+                        }
+                    } else {
+                        print("🔴 Failed to convert to UIImage")
+                    }
+                    
+                    imageDataBuffer.removeFirst(4 + expectedSize)
+                }
+            }
+            
+            if error == nil {
+                self.receiveDataJPEG(from: connection)
+            } else {
+                print("❌ Receive error: \(error!)")
             }
         }
     }
